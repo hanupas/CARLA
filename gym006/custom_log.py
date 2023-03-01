@@ -1,4 +1,4 @@
-import json,os
+import json,os, time
 
 class Custom_log:
     def __init__(self):
@@ -37,7 +37,7 @@ class Custom_log:
 
         return ntv
     
-    def json_write_track(self,episode, model, waktu, epsilon):
+    def json_write_track(self,step, model, waktu, epsilon):
         # Opening JSON file
         f = open('track.json')
 
@@ -45,7 +45,7 @@ class Custom_log:
         # a dictionary
         data = json.load(f)
 
-        data['episode'] = episode
+        data['step'] = step
         if(model != "") : data['model'] = model
         data['waktu'] = waktu
         data['epsilon'] = epsilon
@@ -70,3 +70,6 @@ class Custom_log:
         f.close()
 
         return ntv
+    
+    def log_time(self):
+        return time.strftime('%Y_%m_%d %H_%M_%S', time.localtime(int(time.time())))
