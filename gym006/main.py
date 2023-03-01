@@ -28,7 +28,9 @@ params = {
     'tsb': ModifiedTensorBoard,
     'framestack' : 4,
     'im_dim': 3,
-    'total_step': 50_000
+    'total_step': 50_000,
+    'model_save_interval': 10,
+    'min_epsilon' : 0.01
 }
 
 params['obs_shape']= [params['size_xy'],params['size_xy'], params['im_dim']*params['framestack']]
@@ -37,9 +39,13 @@ params['obs_shape']= [params['size_xy'],params['size_xy'], params['im_dim']*para
 if __name__ == '__main__':
     env = gym.make('carla-v0', params=params)
     agent = DQNAgent(params=params)
-    current_state = env.reset()
+    agent.get_qs(np.ones((params['obs_shape'])))
+    env.reset()
+    current_state = env.get_framebuffer()
     epsilon = params['epsilon']
     if params['step_start'] == 0: epsilon = 1
+
+    model_save_counter = 0
 
     for step in range(params['step_start'], params['step_start']+params['total_step']):
         if np.random.random() > epsilon:
@@ -47,15 +53,31 @@ if __name__ == '__main__':
             action = np.argmax(agent.get_qs(current_state))
         else:
             action = np.random.randint(0,len(params['brake_action']))
-        obs, done = env.step(action)
+        current_state, done = env.step(action)
         # update tensorboard step every episode
         agent.tensorboard.step = step
         # print("step ke ",step," dari ",params['total_step'])
+        
+        # Decay epsilon
+        if epsilon > params['min_epsilon']:
+            epsilon *= params['epsilon_decay']
+            epsilon = max(params['min_epsilon'], epsilon)
+            params['epsilon'] = epsilon
+
         if(done):
             env.close()
             current_state = env.reset()
-            print("lingkungan di reset")
+            print("lingkungan di reset pada step ",step)
+            model_save_counter += 1
+            if(model_save_counter >= params['model_save_interval']): 
+                agent.model.save(f'model/{agent.model_name}_step{step}_time{log_file.log_time()}.h5')
+                agent.tensorboard.update_stats(step=step)
+                params['log_file'].json_write_track(step,agent.model_name, params['log_file'].log_time(), params['epsilon'])
+                model_save_counter = 0
+
         time.sleep(1/params['fps'])
+
+        
     
     env.close()
     
