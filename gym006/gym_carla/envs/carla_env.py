@@ -42,6 +42,8 @@ class CarlaEnv(gym.Env):
         self.camera_bp.set_attribute('sensor_tick', '0.02')
 
         self.done = False
+        self.framebuffer = np.zeros(params['obs_shape'], 'float32')
+        self.n_frames = params['framestack']
         print('Carla server connected!')
     
     def reset(self):
@@ -71,6 +73,7 @@ class CarlaEnv(gym.Env):
         while self.camera_img is None:
             # print("delay reset nunggu camera")
             time.sleep(0.01)
+
         return self.camera_img
     
     def get_camera_img(self, data):
@@ -83,6 +86,22 @@ class CarlaEnv(gym.Env):
         cv2.imshow("",self.camera_img)
         cv2.waitKey(1)
     
+    def reset_buffer(self):
+        self.obs = None
+        self.framebuffer = np.zeros_like(self.framebuffer)
+        return self.framebuffer
+
+    def update_buffer(self,img):
+        cropped_framebuffer = self.framebuffer[:,:,:-3]
+        self.framebuffer = np.concatenate([img,cropped_framebuffer],axis=-1)
+
+    def get_framebuffer(self):
+        self.reset_buffer()
+        for i in range(self.n_frames):
+            self.update_buffer(self.camera_img)
+            time.sleep(0.05)
+        return self.framebuffer
+    
     # method untuk menyimpan history collision
     def collision_data(self,event):
         self.collision_hist.append(event)
@@ -91,12 +110,12 @@ class CarlaEnv(gym.Env):
         self.ego.apply_control(carla.VehicleControl(throttle=0.3))
         distance = lambda l: math.sqrt((l.x - self.ego.get_transform().location.x)**2 + (l.y - self.ego.get_transform().location.y)**2 + (l.z - self.ego.get_transform().location.z)**2)
         d = distance(self.vehicle_list[1].get_location())
-        self.log_file.write(f"DISTANCE = {d}")
+        # self.log_file.write(f"DISTANCE = {d}")
 
         if len(self.collision_hist) != 0:
             self.done = True
 
-        return self.camera_img, self.done
+        return self.get_framebuffer(), self.done
     
     def close(self):
         for actor in self.vehicle_list:
